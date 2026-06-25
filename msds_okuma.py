@@ -1,3 +1,4 @@
+
 import fitz  # PyMuPDF
 import re
 import pymongo
@@ -19,23 +20,6 @@ def projeyi_baslat():
     return client[DB_NAME][COLLECTION_NAME]
 
 
-# ============================================================
-# FİZİKSEL HAL ÇEKME (SECTION 9.1)
-# ============================================================
-#
-# MSDS'lerde Section 9.1 farklı formatlarda gelebiliyor:
-#   "Physical state : Liquid"
-#   "Appearance      Form: solid \n Color: yellow"
-#   "Appearance      Liquid."
-#   "Appearance      Colourless"   <-- bu sadece renk, hal bilgisi YOK
-#
-# Strateji:
-#   1) Section 9 / 9.1 bloğunu metinden izole et (Section 10'dan önce kes).
-#   2) O blok içinde "Physical state", "Form", "Appearance" gibi etiketlerin
-#      yer aldığı satırı/cümleyi bul.
-#   3] Bulunan parçanın içinde gaz/sıvı/katı/toz/granül anahtar kelimelerini ara.
-#   4) Hiçbir anahtar kelime geçmiyorsa (örn. sadece "Colourless" gibi renk
-#      bilgisi varsa) sonucu BOŞ bırak — tahmin yürütme.
 
 FIZIKSEL_HAL_HARITASI = [
     # (ingilizce anahtar kelime regex, türkçe karşılık, OLASILIK ALGORİTMASI İÇİN kategori)
@@ -128,11 +112,6 @@ def olasilik_puani_hesapla(kategori):
     return OLASILIK_PUANLARI.get(kategori, "")
 
 
-# ============================================================
-# ŞİDDET (Ş) PUANI - H Kodu Eşleştirme Tablosu
-# ============================================================
-
-# şiddet puanı dikkate alınır.
 
 H_SIDDET_GRUPLARI = [
     ({"H200", "H201", "H224", "H330"}, 100),

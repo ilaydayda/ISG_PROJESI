@@ -6,6 +6,9 @@ import os
 import re
 import pymongo
 import pandas as pd
+import certifi
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # HEIC (iPhone) Desteği
 register_heif_opener()
@@ -43,18 +46,40 @@ def risk_derecesi_hesapla(skor):
 # --- 2. GÖRÜNTÜ İŞLEME VE OCR FONKSİYONU ---
 def goruntuden_cas_oku(dosya_yolu, reader):
     print(f"\n🔍 {os.path.basename(dosya_yolu)} taranıyor...")
-    gecici_jpg = "gecici_isg.jpg"
+    
+    gecici_png = "gecici_ham.png"
+    islenmis_png = "gecici_islenmis.png"
 
     try:
+        # 1. HEIC/PNG/JPG fark etmeksizin standart ve KAYIPSIZ PNG'ye çevir
         resim = Image.open(dosya_yolu)
-        resim.thumbnail((1500, 1500)) 
-        resim.convert('RGB').save(gecici_jpg)
+        resim.convert('RGB').save(gecici_png, "PNG")
 
-        sonuclar = reader.readtext(gecici_jpg)
+        # 2. OPENCV İLE GÖRÜNTÜ İŞLEME BAŞLIYOR (Colab'daki mantık)
+        img = cv2.imread(gecici_png)
+
+        # Resmi 2 kat büyütüyoruz (küçük detaylar ortaya çıksın)
+        img = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+
+        # Resmi gri tona çeviriyoruz
+        gri_resim = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Yazıları simsiyah, arka planı bembeyaz yapıyoruz (Eşikleme - 120 değeri)
+        _, siyah_beyaz_resim = cv2.threshold(gri_resim, 120, 255, cv2.THRESH_BINARY)
+
+        # İşlenmiş resmi kaydediyoruz
+        cv2.imwrite(islenmis_png, siyah_beyaz_resim)
+
+        # 3. İŞLENMİŞ TERTEMİZ RESMİ EASYOCR'A VERİYORUZ
+        sonuclar = reader.readtext(islenmis_png)
         bulunan_cas_kodlari = []
 
         for (koordinat, metin, guven_skoru) in sonuclar:
             metin = metin.strip()
+            # Bazen OCR tireler arasına boşluk koyar, garantilemek için boşlukları siliyoruz
+            metin = metin.replace(" ", "") 
+            
+            # Sadece katı kuralımıza uyanları alıyoruz
             if re.search(cas_kodu_sablonu, metin):
                 bulunan_cas_kodlari.append(metin)
 
@@ -65,8 +90,11 @@ def goruntuden_cas_oku(dosya_yolu, reader):
         return []
         
     finally:
-        if os.path.exists(gecici_jpg): 
-            os.remove(gecici_jpg)
+        # İşlem bitince arkamızda çöp dosya bırakmıyoruz
+        if os.path.exists(gecici_png): 
+            os.remove(gecici_png)
+        if os.path.exists(islenmis_png): 
+            os.remove(islenmis_png)
 
 # --- 3. ANA AKIŞ VE EXCEL BİRLEŞTİRME ---
 if __name__ == "__main__":
@@ -145,7 +173,7 @@ if __name__ == "__main__":
                     
                     print(f"\n💡 Kimyasal Bulundu: {kimyasal_adi} (Olasılık: {olasilik}, Şiddet: {siddet})")
                     while True:
-                        frekans_input = input(f"👉 Lütfen bu kimyasal için FREKANS (0.5 - 10 arası) değerini girin: ")
+                        frekans_input = input(f"👉 Lütfen bu kimyasal için FREKANS değerini girin: ")
                         try:
                             frekans = float(frekans_input.replace(',', '.'))
                             break
@@ -192,3 +220,6 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"Kritik bir hata oluştu: {e}")
+
+        print(f"❌ Kritik bir hata oluştu: {e}")
+
